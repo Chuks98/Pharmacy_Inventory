@@ -1,3 +1,4 @@
+from datetime import timedelta
 from django.utils import timezone
 from decimal import Decimal, InvalidOperation
 from pymongo import MongoClient
@@ -8,6 +9,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+from django.db.models import Sum
 from .models import Category, Product
 from .serializers import CategorySerializer, ProductSerializer
 
@@ -173,8 +175,8 @@ def save_pending_order(request):
 @api_view(['GET'])
 def get_pending_orders(request):
     try:
-        # Fetch all pending orders from the database
-        pending_orders = list(db.pending_orders.find({}))
+        # Fetch all pending orders from the database and sort by date_sold in descending order
+        pending_orders = list(db.pending_orders.find({}).sort("createdAt", -1))
 
         # Format the response to exclude the MongoDB-specific '_id' field
         for order in pending_orders:
@@ -184,6 +186,7 @@ def get_pending_orders(request):
         return JsonResponse(pending_orders, safe=False, status=200)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
+
 
 
 
@@ -293,8 +296,8 @@ def save_completed_orders(request):
 @api_view(['GET'])
 def get_completed_orders(request):
     try:
-        # Fetch all completed orders from the database
-        completed_orders = list(db.completed_orders.find({}))
+        # Fetch all completed orders from the database and sort by date_sold in descending order
+        completed_orders = list(db.completed_orders.find({}).sort("date_sold", -1))
 
         # Format the response to exclude the MongoDB-specific '_id' field
         for order in completed_orders:
@@ -302,5 +305,146 @@ def get_completed_orders(request):
             del order['_id']  # Remove MongoDB's default _id field
 
         return JsonResponse(completed_orders, safe=False, status=200)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+
+
+# Get total sales for dashboard view
+@api_view(['GET'])
+def get_total_sales(request):
+    try:
+        # Initialize total sales
+        total_sales = Decimal('0.0')
+
+        # Fetch all completed orders
+        completed_orders = db.completed_orders.find()
+
+        # Sum up the total amounts for each completed order
+        for order in completed_orders:
+            total_amount = Decimal(str(order.get('totalAmount', '0')))
+            total_sales += total_amount
+
+        # Return the total sales as JSON
+        return JsonResponse({'totalSales': float(total_sales)}, status=200)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+
+# Get total products number
+@api_view(['GET'])
+def get_total_products_quantity(request):
+    try:
+        # Calculate the total quantity of available products
+        total_quantity = Product.objects.aggregate(total_quantity=Sum('availableQuantity'))['total_quantity'] or 0
+
+        # You can also include other relevant data if needed
+        total_products_count = Product.objects.count()  # Count total products
+
+        return JsonResponse({
+            'success': True,
+            'total_quantity': total_quantity,
+            'total_products_count': total_products_count,
+            'message': 'Total quantity and count retrieved successfully.'
+        })
+    
+    except Exception as e:
+        # Handle any unexpected errors gracefully
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'message': 'An error occurred while fetching the total quantity.'
+        })
+    
+
+
+@api_view(['GET'])
+def get_low_stock_items(request, threshold):
+    try:
+        low_stock_items = Product.objects.filter(availableQuantity__lt=threshold)
+        
+        # You can include additional fields if necessary, such as name and availableQuantity
+        low_stock_data = low_stock_items.values('id', 'name', 'availableQuantity')
+        
+        return JsonResponse({
+            'success': True,
+            'low_stock_items': list(low_stock_data),
+            'message': 'Low stock items retrieved successfully.'
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'message': 'An error occurred while fetching low stock items.'
+        })
+    
+
+
+
+# Get products expiring withing 30 days
+@api_view(['GET'])
+def get_expiring_products(request):
+    try:
+        # Get the current date and the date 30 days from now
+        current_date = timezone.now()
+        expiry_date_limit = current_date + timedelta(days=30)
+
+        # Filter products that are expiring within the next 30 days
+        expiring_products = Product.objects.filter(expiry_date__gte=current_date, expiry_date__lt=expiry_date_limit)
+
+        # Prepare the response data
+        expiring_data = expiring_products.values('id', 'name', 'expiry_date')
+
+        return JsonResponse({
+            'success': True,
+            'expiring_products': list(expiring_data),
+            'message': 'Expiring products retrieved successfully.'
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'message': 'An error occurred while fetching expiring products.'
+        })
+    
+
+
+
+
+# Get total sales for dashboard view
+@api_view(['GET'])
+def get_pending_orders_number(request):
+    try:
+        # Fetch all completed orders
+        pending_orders_db = db.pending_orders.find()
+
+        pending_orders = pending_orders_db.count()
+        print(pending_orders)
+        # Return the total sales as JSON
+        return JsonResponse({'pending_orders': pending_orders}, status=200)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+
+
+# Get total sales for dashboard view
+@api_view(['GET'])
+def get_completed_orders_number(request):
+    try:
+        # Fetch all completed orders
+        completed_orders_db = db.completed_orders.find()
+
+        completed_orders = completed_orders_db.count()
+        print(completed_orders)
+        # Return the total sales as JSON
+        return JsonResponse({'completed_orders': completed_orders}, status=200)
+
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
