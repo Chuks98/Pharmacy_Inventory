@@ -1,3 +1,7 @@
+from django.utils import timezone
+from decimal import Decimal, InvalidOperation
+from pymongo import MongoClient
+from django.conf import settings
 from django.db import IntegrityError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
@@ -6,6 +10,10 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import Category, Product
 from .serializers import CategorySerializer, ProductSerializer
+
+client = MongoClient(settings.DATABASES['default']['CLIENT']['host'])
+db = client['Inventory']  # Replace with your actual database name
+
 
 # Get categories
 @api_view(['GET'])
@@ -16,6 +24,20 @@ def get_categories(request):
         return Response(serializer.data, status=status.HTTP_200_OK)  # Return the serialized data
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+# Get all products
+@api_view(['GET'])
+def get_products(request):
+    try:
+        products = Product.objects.all()
+        serializer = ProductSerializer(products, many=True)  # Serialize the data
+        print(serializer.data)
+        return Response(serializer.data)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 # Create Category
 @api_view(['POST'])
@@ -35,18 +57,31 @@ def create_category(request):
 @api_view(['POST'])
 def create_product(request):
     if request.method == 'POST':
-
         print("AT LEAST GOT HERE")
-        # Create a serializer instance with the request data
+        
+        # Use request.data to access parsed JSON data
+        product_name = request.data.get('name')
+
+        # Check if a product with the same name already exists
+        if Product.objects.filter(name=product_name).exists():
+            return Response({'error': 'Product already exists'}, status=status.HTTP_409_CONFLICT)
+        
+        # Initialize serializer with request data
         serializer = ProductSerializer(data=request.data)
         
+        # Check if data is valid
         if serializer.is_valid():
-            product = serializer.save()
+            try:
+                # Try to save the product
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
             
-            # image_url = request.build_absolute_uri(product.image.url) if product.image else None
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                # Handle save errors and return a readable error message
+                print("Error Saving Data:", e)
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Return validation errors if the serializer is not valid
+        # Return validation errors if data is invalid
         print("Serializer Errors:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
@@ -54,11 +89,6 @@ def create_product(request):
 
 
 # Get products by categries
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from .models import Product
-from .serializers import ProductSerializer
-
 @api_view(['GET'])
 def get_products_by_category(request):
     category_id = request.GET.get('category_id')
@@ -105,3 +135,172 @@ def delete_product(request, product_id):
     product = get_object_or_404(Product, id=product_id)  # Retrieve the product or return 404 if not found
     product.delete()  # Delete the product from the database
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+# Save pending Order
+@api_view(['POST'])
+def save_pending_order(request):
+    try:
+        data = request.data
+        
+        # Extract main purchase data
+        purchase_code = data.get('purchaseCode')
+        ordered_items = data.get('orderedItems', [])
+
+        # Check if purchaseCode already exists in the database
+        if db.pending_orders.find_one({"purchaseCode": purchase_code}):
+            return JsonResponse({"error": "Order with this purchase code already exists."}, status=409)
+
+        # Format the order document
+        order_document = {
+            "purchaseCode": purchase_code,
+            "orderedItems": ordered_items,
+            "createdAt": timezone.now()
+        }
+        
+        # Insert the order document into MongoDB
+        result = db.pending_orders.insert_one(order_document)
+        
+        return JsonResponse({"message": "Order saved successfully", "orderId": str(result.inserted_id)}, status=201)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+
+# Code to get pending orders
+@api_view(['GET'])
+def get_pending_orders(request):
+    try:
+        # Fetch all pending orders from the database
+        pending_orders = list(db.pending_orders.find({}))
+
+        # Format the response to exclude the MongoDB-specific '_id' field
+        for order in pending_orders:
+            order['id'] = str(order['_id'])  # Convert ObjectId to string
+            del order['_id']  # Remove MongoDB's default _id field
+
+        return JsonResponse(pending_orders, safe=False, status=200)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+
+# Delete pending orders
+@api_view(['DELETE'])
+def delete_pending_order(request, purchase_code):
+    try:
+        # Find and delete the order with the given purchase code
+        result = db.pending_orders.delete_one({"purchaseCode": purchase_code})
+
+        if result.deleted_count == 1:
+            return JsonResponse({"message": "Order deleted successfully"}, status=204)
+        else:
+            return JsonResponse({"error": "Order not found"}, status=404)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+
+@api_view(['POST'])
+def save_completed_orders(request):
+    try:
+        data = request.data
+        
+        # Extract data from the request
+        purchase_code = data.get('purchaseCode')
+        ordered_items = data.get('orderedItems', [])
+        payment_type = data.get('paymentType')
+        total_amount = Decimal(data.get('totalAmount', "0"))  # Ensure it's a Decimal
+        user_type = data.get('userType')
+        date_sold = data.get('date_sold')
+
+        # Process each item in ordered_items
+        for item in ordered_items:
+            price = item.get('price', "0")
+            # Clean the price string to remove any unwanted characters
+            price_str = str(price).replace('“', '').replace('”', '').strip()
+
+            # Convert the price to Decimal, ensuring it's a valid decimal number
+            try:
+                item['price'] = Decimal(price_str) if price_str else Decimal('0')
+                print(f"Processed price for item: {item['price']}")  # Debugging output
+            except InvalidOperation:
+                return JsonResponse({"error": f"Invalid price format: {price_str}"}, status=400)
+
+        # Iterate through ordered items and update product quantities
+        for item in ordered_items:
+            product_id = item.get('id')  # Assuming orderedItems have an 'id' field
+            ordered_quantity = item.get('quantity', 0)
+            print(f"Product ID: {product_id}, Ordered Quantity: {ordered_quantity}")
+            
+            # Fetch product from Product model based on ID
+            try:
+                product = Product.objects.get(id=product_id)  # Use get() to retrieve the product
+                print(f"Retrieved product: {product.id}, Current Quantity: {product.availableQuantity}")
+            except Product.DoesNotExist:
+                return JsonResponse({"error": f"Product with ID {product_id} not found."}, status=404)
+
+            # Check stock availability
+            if product.availableQuantity < ordered_quantity:
+                return JsonResponse({"error": f"Not enough stock for product ID {product_id}."}, status=400)
+
+            # Prepare data for ProductSerializer
+            product_data = {
+                'id': product.id,
+                'price': item['price'],
+                'availableQuantity': product.availableQuantity - ordered_quantity,
+            }
+
+            # Validate and update the product using ProductSerializer
+            serializer = ProductSerializer(product, data=product_data, partial=True)
+            if serializer.is_valid():
+                serializer.save()  # Save updated product
+            else:
+                return JsonResponse({"error": serializer.errors}, status=400)
+
+        # Create the completed order document for MongoDB
+        completed_order_document = {
+            "purchaseCode": purchase_code,
+            "soldItems": ordered_items,
+            "paymentType": payment_type,
+            "totalAmount": float(total_amount),  # Convert Decimal to float for JSON response
+            "userType": user_type,
+            "date_sold": date_sold or timezone.now().isoformat()
+        }
+
+        # Convert any remaining Decimal values to float or str in ordered_items
+        for item in ordered_items:
+            item['price'] = float(item['price'])
+
+        print("Order document ready for saving:", completed_order_document)
+
+        # Save the completed order to the completed_orders collection in MongoDB
+        result = db.completed_orders.insert_one(completed_order_document)
+        
+        return JsonResponse({"message": "Order completed successfully", "orderId": str(result.inserted_id)}, status=201)
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return JsonResponse({"error": str(e)}, status=400)
+    
+
+
+
+# Code to get completed Orders
+@api_view(['GET'])
+def get_completed_orders(request):
+    try:
+        # Fetch all completed orders from the database
+        completed_orders = list(db.completed_orders.find({}))
+
+        # Format the response to exclude the MongoDB-specific '_id' field
+        for order in completed_orders:
+            order['id'] = str(order['_id'])  # Convert ObjectId to string
+            del order['_id']  # Remove MongoDB's default _id field
+
+        return JsonResponse(completed_orders, safe=False, status=200)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
