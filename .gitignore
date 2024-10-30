@@ -17,6 +17,7 @@ staticfiles/
 # Virtual environments
 venv/
 env/
+myenv/
 # macOS and Windows
 .DS_Store
 Thumbs.db
