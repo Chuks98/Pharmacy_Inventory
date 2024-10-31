@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import Footer from './footer';
 
 const Register = () => {
   const [user_type, setUsertype] = useState('');
@@ -18,14 +17,21 @@ const Register = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errorMessages, setErrorMessages] = useState({});
   const [isPasswordValid, setIsPasswordValid] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const apiUrl = process.env.REACT_APP_API_ENDPOINT;
   const navigate = useNavigate();
+
+  const userData = JSON.parse(localStorage.getItem('userData'));
 
   useEffect(() => {
     if (localStorage.getItem('userData')) {
       navigate('/dashboard');
     }
+
+    // if(!(userData.user_type == 'Manager')) {
+    //   navigate('/');
+    // }
   });
 
   const handleRegister = async (e) => {
@@ -44,6 +50,7 @@ const Register = () => {
 
 
     try {
+      setLoading(true);
 
       const data = {
         user_type: user_type,
@@ -74,6 +81,8 @@ const Register = () => {
     } catch (err) {
       console.error(err);
       toast.error("An unexpected error occurred. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -98,7 +107,6 @@ const Register = () => {
   };
 
   return (
-    <>
     <Container maxWidth="sm" sx={{ mt: 8, bgcolor: 'white', boxShadow: 3, p: 4, borderRadius: 2 }}>
       <Typography variant="h4" gutterBottom>
         Register
@@ -241,13 +249,15 @@ const Register = () => {
             <Typography variant="body2" align="center">
               Already have an account? <Link to="/">Login</Link>
             </Typography>
+            <br/>
+            <Typography variant="body2" align="center">
+              Powered By SalubreTech
+            </Typography>
           </Grid>
         </Grid>
       </form>
       <ToastContainer />
     </Container>
-    <Footer/>
-    </>
   );
 };
 

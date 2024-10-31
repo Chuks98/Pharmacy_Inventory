@@ -1,4 +1,4 @@
-import { Box, Button, FormControl, InputLabel, MenuItem, Select, TextField, Typography } from '@mui/material';
+import { Box, Button, CircularProgress, FormControl, InputLabel, MenuItem, Select, TextField, Typography } from '@mui/material';
 import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import axios from 'axios';
@@ -6,7 +6,6 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import Footer from './footer';
 
 const ProductForm = () => {
     const [productName, setProductName] = useState('');
@@ -17,6 +16,7 @@ const ProductForm = () => {
     const [image, setImage] = useState(null);
     const [expiryDate, setExpiryDate] = useState(null); // State for expiry date
     const [categories, setCategories] = useState([]);
+    const [loading, setLoading] = useState(false);
 
     const apiUrl = process.env.REACT_APP_API_ENDPOINT;
 
@@ -63,6 +63,7 @@ const ProductForm = () => {
         formData.append('staff_id', staff_id);
 
         try {
+            setLoading(true);
             const response = await axios.post(`${apiUrl}/inventory/create-product/`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
@@ -97,6 +98,8 @@ const ProductForm = () => {
                     autoClose: 3000,
                 });
             }
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -119,7 +122,6 @@ const ProductForm = () => {
     };
 
     return (
-        <>
         <LocalizationProvider dateAdapter={AdapterDayjs}>
             <Box
                 sx={{
@@ -129,6 +131,7 @@ const ProductForm = () => {
                     height: '100%',
                 }}
             >
+                {loading ? <CircularProgress/> :
                 <Box
                     component="form"
                     onSubmit={handleSubmit}
@@ -212,12 +215,14 @@ const ProductForm = () => {
                     >
                         Create Product
                     </Button>
-                </Box>
+                    <br/>
+                    <Typography variant="body2" align="center">
+                        Powered by SalubreTech
+                    </Typography>
+                </Box>}
                 <ToastContainer />
             </Box>
         </LocalizationProvider>
-        <Footer/>
-        </>
     );
 };
 

@@ -1,4 +1,4 @@
-import { Box, Button, TextField, Typography } from '@mui/material';
+import { Box, Button, CircularProgress, TextField, Typography } from '@mui/material';
 import axios from 'axios';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -9,6 +9,7 @@ import Footer from './footer';
 const CategoryForm = () => {
     const apiUrl = process.env.REACT_APP_API_ENDPOINT;
     const [categoryName, setCategoryName] = useState('');
+    const [loading, setLoading] = useState(false);
 
     const navigate = useNavigate();
 
@@ -35,6 +36,7 @@ const CategoryForm = () => {
         }
     
         if (categoryName !== '') {
+            setLoading(true);
             const data = {
                 name: categoryName,
                 staff_id: staff_id  // Add staff_id to the data object
@@ -64,6 +66,8 @@ const CategoryForm = () => {
                         autoClose: 3000,
                     });
                 }
+            } finally {
+                setLoading(false);
             }
         } else {
             toast.warning('The category name must not be empty.', {
@@ -76,6 +80,7 @@ const CategoryForm = () => {
 
     return (
         <>
+        
         <Box
             sx={{
             display: 'flex',
@@ -84,6 +89,7 @@ const CategoryForm = () => {
             height: '100%'
             }}
         >
+            {loading ? <CircularProgress/> :
             <Box
             component="form"
             onSubmit={handleSubmit}
@@ -112,7 +118,7 @@ const CategoryForm = () => {
             <Button type="submit" variant="contained" sx={{ backgroundColor: '#3182ce', height: '45px', '&:hover': { backgroundColor: '#2c5282' } }}>
             Create Category
             </Button>
-        </Box>
+        </Box>}
         
         {/* Notification Container */}
         <ToastContainer />

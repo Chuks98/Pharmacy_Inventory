@@ -164,6 +164,50 @@ const Sales = () => {
     return code;
   };
 
+  const handlePrint = async (order) => {
+    const printContent = `
+    <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Order ${order}</title>
+            <style>
+                /* Add your styles here */
+            </style>
+        </head>
+        <body>
+            <h1>${order}</h1>
+        </body>
+    </html>
+    `;
+
+    // Create a hidden iframe
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+
+    // Append iframe to the document
+    document.body.appendChild(iframe);
+
+    // Write the print content to the iframe document
+    const doc = iframe.contentWindow.document || iframe.contentDocument;
+    doc.open();
+    doc.write(printContent);
+    doc.close();
+
+    // Print the content of the iframe
+    iframe.contentWindow.focus(); // Focus to ensure it prints correctly on some browsers
+    iframe.contentWindow.print();
+
+    // Clean up after printing
+    iframe.addEventListener('afterprint', () => {
+        document.body.removeChild(iframe);
+    });
+};
+
+
   const handleForwardOrder = async () => {
     confirmAlert({
       title: 'Confirm Order',
@@ -174,11 +218,14 @@ const Sales = () => {
           onClick: async () => {
             const purchaseCode = generateUniqueCode();
             alert(`Your Purchase Code is: ${purchaseCode}. Please copy this code carefully!`);
+            await handlePrint(purchaseCode);
+            
 
             try {
               setLoading(true);
               const response = await axios.post(`${apiUrl}/inventory/save_pending_order/`, { orderedItems, purchaseCode }, { header: { 'content-type': "application/json" } });
               toast.success('Order has been placed successfully!');
+              window.location.reload();
               if(response.status == 201) {
                 localStorage.removeItem('orderedItems');
                 setOrderedItems([]);
@@ -208,7 +255,9 @@ const Sales = () => {
 
   return (
     <>
+    {loading ? <CircularProgress/> : 
     <Box maxWidth="lg" mx="auto" mt={4} p={2}>
+      
       <Typography variant="h4" gutterBottom>
         Sales
       </Typography>
@@ -286,6 +335,9 @@ const Sales = () => {
                 <Typography variant="body1" style={{ fontWeight: 'bold' }}>Product Name</Typography>
               </TableCell>
               <TableCell>
+                <Typography variant="body1" style={{ fontWeight: 'bold' }}>Price (₦)</Typography>
+              </TableCell>
+              <TableCell>
                 <Typography variant="body1" style={{ fontWeight: 'bold' }}>Category</Typography>
               </TableCell>
               <TableCell>
@@ -303,6 +355,7 @@ const Sales = () => {
             {orderedItems.map((item) => (
               <TableRow key={item.id}>
                 <TableCell>{item.name}</TableCell>
+                <TableCell>{item.price}</TableCell>
                 <TableCell>{item.categoryName}</TableCell>
                 <TableCell>{item.availableQuantity}</TableCell>
                 <TableCell>
@@ -332,8 +385,7 @@ const Sales = () => {
       </TableContainer>
 
       <ToastContainer />
-      {loading && <CircularProgress />}
-    </Box>
+    </Box>}
     <Footer/>
     </>
   );

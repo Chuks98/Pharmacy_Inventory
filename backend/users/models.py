@@ -1,7 +1,9 @@
 from django.db import models
 from django.utils import timezone
+from .auto_increment_field import AutoIncrementField
 
 class Profile(models.Model):
+    id = AutoIncrementField(sequence_name='my_model_sequence', primary_key=True)
     username = models.CharField(max_length=225, unique=True, null=True)
     first_name = models.CharField(max_length=225, null=True)
     last_name = models.CharField(max_length=225, null=True)

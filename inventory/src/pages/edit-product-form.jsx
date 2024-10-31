@@ -1,4 +1,4 @@
-import { Box, Button, FormControl, InputLabel, MenuItem, Select, TextField, Typography } from '@mui/material';
+import { Box, Button, CircularProgress, FormControl, InputLabel, MenuItem, Select, TextField, Typography } from '@mui/material';
 import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import axios from 'axios';
@@ -7,7 +7,6 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom'; // Assuming we pass product ID through URL params
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import Footer from './footer';
 
 const EditProductForm = () => {
     const { productId } = useParams(); // Get product ID from URL params
@@ -19,6 +18,7 @@ const EditProductForm = () => {
     const [image, setImage] = useState(null);
     const [expiryDate, setExpiryDate] = useState(dayjs());
     const [categories, setCategories] = useState([]);
+    const [loading, setLoading] = useState(false);
 
     const apiUrl = process.env.REACT_APP_API_ENDPOINT;
     const navigate = useNavigate();
@@ -85,6 +85,7 @@ const EditProductForm = () => {
         }
 
         try {
+            setLoading(true);
             const response = await axios.patch(`${apiUrl}/inventory/update_product/${productId}/`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
@@ -101,6 +102,8 @@ const EditProductForm = () => {
                 position: 'top-right',
                 autoClose: 3000,
             });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -120,7 +123,6 @@ const EditProductForm = () => {
     };
 
     return (
-        <>
         <LocalizationProvider dateAdapter={AdapterDayjs}>
             <Box
                 sx={{
@@ -130,6 +132,7 @@ const EditProductForm = () => {
                     height: '100%',
                 }}
             >
+                {loading ? <CircularProgress/> :
                 <Box
                     component="form"
                     onSubmit={handleSubmit}
@@ -213,12 +216,14 @@ const EditProductForm = () => {
                     >
                         Update Product
                     </Button>
-                </Box>
+                    <br/>
+                    <Typography variant="body2" align="center">
+                        Powered By SalubreTech
+                    </Typography>
+                </Box>}
                 <ToastContainer />
             </Box>
         </LocalizationProvider>
-        <Footer/>
-        </>
     );
 };
 

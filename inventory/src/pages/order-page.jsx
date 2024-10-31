@@ -1,7 +1,6 @@
 import { InsertDriveFile } from '@mui/icons-material';
 import SellIcon from '@mui/icons-material/AttachMoney';
 import DeleteIcon from '@mui/icons-material/Delete';
-import PrintIcon from '@mui/icons-material/Print';
 import { Badge, Box, Button, Collapse, Container, FormControl, MenuItem, Paper, Select, Table, TableBody, TableCell, TableHead, TableRow, Tooltip, Typography } from '@mui/material';
 import axios from 'axios';
 import React, { useEffect, useState } from 'react';
@@ -10,6 +9,7 @@ import 'react-confirm-alert/src/react-confirm-alert.css';
 import { useNavigate } from 'react-router-dom';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import Swal from 'sweetalert2';
 
 const OrderPage = () => {
   const [firstName, setFirstName] = useState('');
@@ -25,10 +25,31 @@ const OrderPage = () => {
   const [trimmedPendingOrders, setTrimmedPendingOrders] = useState([]);
   const [trimmedCompletedOrders, setTrimmedCompletedOrders] = useState([]);
   const [userData, setUserData] = useState();
+  const [isPrinted, setIsPrinted] = useState(false);
       
   const apiUrl = process.env.REACT_APP_API_ENDPOINT;
 
   const navigate = useNavigate();
+
+  const fetchPendingOrder = async () => {
+    try {
+      const response = await axios.get(`${apiUrl}/inventory/get_pending_orders/`);
+      setPendingOrder(response.data);
+      setTrimmedPendingOrders((response.data).slice(0, 10));
+    } catch (error) {
+      console.error('Error fetching pending order:', error);
+    }
+  };
+
+  const fetchCompletedOrder = async () => {
+    try {
+      const response = await axios.get(`${apiUrl}/inventory/get_completed_orders/`); // Fetch completed orders
+      setCompletedOrder(response.data);
+      setTrimmedCompletedOrders((response.data).slice(0, 10));
+    } catch (error) {
+      console.error('Error fetching completed orders:', error);
+    }
+  };
 
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('userData'));
@@ -41,27 +62,6 @@ const OrderPage = () => {
       setFirstName(userData.first_name);
       setLastName(userData.last_name);
     }
-
-
-    const fetchPendingOrder = async () => {
-      try {
-        const response = await axios.get(`${apiUrl}/inventory/get_pending_orders/`);
-        setPendingOrder(response.data);
-        setTrimmedPendingOrders((response.data).slice(0, 10));
-      } catch (error) {
-        console.error('Error fetching pending order:', error);
-      }
-    };
-
-    const fetchCompletedOrder = async () => {
-      try {
-        const response = await axios.get(`${apiUrl}/inventory/get_completed_orders/`); // Fetch completed orders
-        setCompletedOrder(response.data);
-        setTrimmedCompletedOrders((response.data).slice(0, 10));
-      } catch (error) {
-        console.error('Error fetching completed orders:', error);
-      }
-    };
 
     fetchPendingOrder();
     fetchCompletedOrder(); 
@@ -112,7 +112,7 @@ const OrderPage = () => {
     return items.reduce((total, item) => total + item.quantity * parseFloat(item.price), 0).toFixed(2);
   };
 
-  const handlePrint = (order) => {
+  const handlePrint = async (order) => {
     const printDate = new Date().toLocaleString('en-US', { year: 'numeric', month: 'short', day: '2-digit', hour: 'numeric', minute: 'numeric', hour12: true });
     const printContent = `
     <html lang="en">
@@ -238,16 +238,37 @@ const OrderPage = () => {
         </body>
         </html>
     `;
-    const newWindow = window.open();
-    newWindow.document.write(printContent);
-    newWindow.document.close();
-    newWindow.print();
+    // Create a hidden iframe
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+
+    // Append iframe to the document
+    document.body.appendChild(iframe);
+
+    // Write the print content to the iframe document
+    const doc = iframe.contentWindow.document || iframe.contentDocument;
+    doc.open();
+    doc.write(printContent);
+    doc.close();
+
+    // Print the content of the iframe
+    iframe.contentWindow.focus(); // Focus to ensure it prints correctly on some browsers
+    iframe.contentWindow.print();
+
+    // Clean up after printing
+    iframe.addEventListener('afterprint', () => {
+        document.body.removeChild(iframe);
+    });
+    return true;
   };
 
   const handleSell = (order) => {
     confirmAlert({
       title: 'Confirm to Sell',
-      message: 'Click yes to continue?',
+      message: 'Do you wish to continue?',
       buttons: [
         {
           label: 'Yes',
@@ -286,9 +307,29 @@ const OrderPage = () => {
                 });
       
                 if (deleteResponse.status === 204) {
-                  // Show success toast notification
-                  toast.success("Product(s) successfully sold");
-                  setPendingOrder(prevOrders => prevOrders.filter(order => order.purchaseCode !== dataToSend.purchaseCode));
+                  await Swal.fire({
+                    title: 'Print Transaction!',
+                    text: 'Transaction successful. Do you want to print this transaction?',
+                    icon: 'success',
+                    showCancelButton: true,
+                    confirmButtonText: 'Print',
+                    cancelButtonText: 'No',
+                    confirmButtonColor: '#3182ce', // Color for OK button
+                    cancelButtonColor: 'crimson',   // Color for Cancel button
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                      const printed = await handlePrint(order);
+                      if (printed == true) {
+                        setPendingOrder(prevOrders => prevOrders.filter(order => order.purchaseCode !== dataToSend.purchaseCode));
+                        // window.location.reload();
+                        fetchPendingOrder();
+                        fetchCompletedOrder();
+                      }
+                    } else if (result.dismiss === Swal.DismissReason.cancel) {
+                      setPendingOrder(prevOrders => prevOrders.filter(order => order.purchaseCode !== dataToSend.purchaseCode));
+                      window.location.reload();
+                    }
+                  });
                 }
               }
             } catch (error) {
@@ -490,7 +531,6 @@ const OrderPage = () => {
                       </Select>
                     </FormControl>
                     <Box sx={{ marginTop: 2 }}>
-                      <p style={{color: 'crimson'}}>* Please make sure you print before clicking on the sell button. *</p>
                       <Button
                         variant="contained"
                         color="primary"
@@ -501,16 +541,6 @@ const OrderPage = () => {
                         startIcon={<SellIcon />}
                       >
                         Sell
-                      </Button>
-                      <Button
-                        variant="contained"
-                        color="success"
-                        size="small"
-                        onClick={() => handlePrint(order)}
-                        disabled={!paymentType[order.purchaseCode]}
-                        startIcon={<PrintIcon />}
-                      >
-                        Print
                       </Button>
                       <Button
                         variant="contained"
@@ -591,8 +621,8 @@ const OrderPage = () => {
                 {order.soldItems.length > 0 && (
                   <Typography variant="body1" sx={{ fontSize: '15px' }}>
                     <i>Sold by: 
-                      <Tooltip title={order.soldItems[0].staff_name}>
-                          {order.soldItems[0].user_type}
+                      <Tooltip title={order.staff_name}>
+                          {order.userType}
                       </Tooltip>
                     </i>
                   </Typography>
@@ -628,6 +658,15 @@ const OrderPage = () => {
                   <Typography variant="body1" sx={{ fontWeight: 'bold', mt: 2 }}>
                     Total Price: ₦{calculateTotalPrice(order.soldItems)}
                   </Typography>
+                  {/* <Button
+                    variant="contained"
+                    size="small"
+                    sx={{ mr: 1, backgroundColor: '#53A022', marginTop: '5px' }}
+                    onClick={() => handlePrint(order)}
+                    startIcon={<SellIcon />}
+                  >
+                    Print
+                  </Button> */}
                 </Box>
               </Collapse>
             </Box>

@@ -218,6 +218,7 @@ def save_completed_orders(request):
         payment_type = data.get('paymentType')
         total_amount = Decimal(data.get('totalAmount', "0"))  # Ensure it's a Decimal
         user_type = data.get('userType')
+        staff_name = data.get('staff_name')
         date_sold = data.get('date_sold')
 
         # Process each item in ordered_items
@@ -271,6 +272,7 @@ def save_completed_orders(request):
             "paymentType": payment_type,
             "totalAmount": float(total_amount),  # Convert Decimal to float for JSON response
             "userType": user_type,
+            "staff_name": staff_name,
             "date_sold": date_sold or timezone.now().isoformat()
         }
 

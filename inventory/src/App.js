@@ -3,6 +3,7 @@ import React from 'react';
 import { Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import { UserProvider } from './components/userContext';
+import ErrorBoundary from './handlers/error-boundary';
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
 import Login from './pages/Login';
@@ -10,7 +11,6 @@ import Reports from './pages/Reports';
 import Sales from './pages/Sales';
 import CategoryForm from './pages/category-form';
 import EditProductForm from './pages/edit-product-form';
-import ErrorBoundary from './pages/error-boundary';
 import Logout from './pages/logout';
 import NotFound from './pages/not-found';
 import OrderPage from './pages/order-page';
@@ -22,11 +22,11 @@ function App() {
 
   return (
     <UserProvider>
+      <ErrorBoundary>
       <Router>
         <CssBaseline />
         <Box sx={{ display: 'flex', minHeight: '100vh' }}>
           {/* Wrap Navbar and Main Content in ErrorBoundary */}
-          <ErrorBoundary>
             <Navbar />
             <Box
               component="main"
@@ -54,9 +54,9 @@ function App() {
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Box>
-          </ErrorBoundary>
         </Box>
       </Router>
+      </ErrorBoundary>
     </UserProvider>
   );
 }

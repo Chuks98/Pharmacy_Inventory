@@ -144,7 +144,6 @@ const Inventory = () => {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell><strong>Id</strong></TableCell>
                 <TableCell><strong>Name</strong></TableCell>
                 <TableCell><strong>Price (₦)</strong></TableCell>
                 <TableCell><strong>Available Quantity</strong></TableCell>
@@ -156,7 +155,6 @@ const Inventory = () => {
             <TableBody>
               {products.map((product) => (
                 <TableRow key={product.id}>
-                  <TableCell>{product.id}</TableCell>
                   <TableCell>{product.name}</TableCell>
                   <TableCell>{product.price}</TableCell>
                   <TableCell>{product.availableQuantity}</TableCell>
