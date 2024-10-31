@@ -19,10 +19,18 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",  # You can also include this as well
-    # Add other allowed origins if needed
+    "http://192.168.32.100:3000",
+    "http://192.168.32.2:3000",
+    "http://192.168.32.3:3000",
 ]
 
-CSRF_TRUSTED_ORIGINS = ['http://localhost:3000', "http://127.0.0.1:3000"] 
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    "http://127.0.0.1:3000",
+    "http://192.168.32.100:3000",
+    "http://192.168.32.2:3000",
+    "http://192.168.32.2:3000"
+]
 
 CORS_ALLOW_METHODS = [
     "GET",

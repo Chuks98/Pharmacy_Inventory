@@ -175,8 +175,8 @@ const Sales = () => {
                 /* Add your styles here */
             </style>
         </head>
-        <body>
-            <h1>${order}</h1>
+        <body style="width: '100%';">
+            <h1 style="width: '100%'; text-align: 'center'">Purchase Code: ${order}</h1>
         </body>
     </html>
     `;
