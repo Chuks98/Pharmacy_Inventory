@@ -9,6 +9,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 const ProductForm = () => {
     const [productName, setProductName] = useState('');
+    const [costPrice, setCostPrice] = useState('');
     const [price, setPrice] = useState('');
     const [category, setCategory] = useState('');
     const [categoryName, setCategoryName] = useState(''); // New state for category name
@@ -50,8 +51,12 @@ const ProductForm = () => {
         if (expiryDate == null) {
             return toast.warning('Please insert an expiry date');
         }
+        if (parseFloat(costPrice) >= parseFloat(price)) {
+            return toast.warning('The selling price must be higher than the cost price.');
+        }
         const formData = new FormData();
         formData.append('name', productName);
+        formData.append('costPrice', costPrice);
         formData.append('price', price);
         formData.append('category', category);
         formData.append('categoryName', categoryName);
@@ -77,6 +82,7 @@ const ProductForm = () => {
                 });
                 // Reset form fields
                 setProductName('');
+                setCostPrice('');
                 setPrice('');
                 setCategory('');
                 setCategoryName(''); // Reset category name
@@ -159,7 +165,15 @@ const ProductForm = () => {
                         required
                     />
                     <TextField
-                        label="Price (₦)"
+                        label="Cost Price (₦)"
+                        type="number"
+                        variant="outlined"
+                        value={costPrice}
+                        onChange={(e) => setCostPrice(e.target.value)}
+                        required
+                    />
+                    <TextField
+                        label="Selling Price (₦)"
                         type="number"
                         variant="outlined"
                         value={price}

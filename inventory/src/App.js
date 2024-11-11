@@ -5,6 +5,7 @@ import Navbar from './components/Navbar';
 import { UserProvider } from './components/userContext';
 import ErrorBoundary from './handlers/error-boundary';
 import Dashboard from './pages/Dashboard';
+import HR from './pages/HR';
 import Inventory from './pages/Inventory';
 import Login from './pages/Login';
 import Reports from './pages/Reports';
@@ -16,6 +17,7 @@ import NotFound from './pages/not-found';
 import OrderPage from './pages/order-page';
 import ProductForm from './pages/product-form';
 import Register from './pages/register';
+import SalesReport from './pages/sales-report';
 
 function App() {
   const theme = 'light';
@@ -46,10 +48,12 @@ function App() {
                 <Route path="/sales" element={<Sales />} />
                 <Route path="/orders" element={<OrderPage />} />
                 <Route path="/reports" element={<Reports />} />
+                <Route path="/sales-reports" element={<SalesReport />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/category-form" element={<CategoryForm />} />
                 <Route path="/product-form" element={<ProductForm />} />
                 <Route path="/edit-product/:productId" element={<EditProductForm />} />
+                <Route path="/human-resources" element={<HR/>} />
                 <Route path="/logout" element={<Logout />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

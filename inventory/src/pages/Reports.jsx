@@ -7,38 +7,38 @@ const Reports = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if(!localStorage.getItem('userData')) {
-        navigate('/');
+    if (!localStorage.getItem('userData')) {
+      navigate('/');
     }
-  });
-  
+  }, [navigate]); // Ensure navigate is not continuously called
+
   const generateReport = (reportType) => {
-    // Implement report generation logic here
-    console.log(`Generating ${reportType} report`);
+    // Example of navigation after generating the report (e.g., to a report details page)
+    navigate(`/${reportType}`);
   };
 
   return (
     <>
-    <Container maxWidth="lg" sx={{ mt: 8 }}>
-      <Typography variant="h4" gutterBottom>
-        Reports
-      </Typography>
-      <Stack spacing={2} alignItems="stretch">
-        <Button variant="contained" color="primary" onClick={() => generateReport('sales')}>
-          Generate Sales Report
-        </Button>
-        <Button variant="contained" color="success" onClick={() => generateReport('inventory')}>
-          Generate Inventory Report
-        </Button>
-        <Button variant="contained" color="warning" onClick={() => generateReport('expiry')}>
-          Generate Expiry Report
-        </Button>
-        <Button variant="contained" color="secondary" onClick={() => generateReport('profit')}>
-          Generate Profit Report
-        </Button>
-      </Stack>
-    </Container>
-    <Footer/>
+      <Container maxWidth="lg" sx={{ mt: 8 }}>
+        <Typography variant="h4" gutterBottom>
+          Reports
+        </Typography>
+        <Stack spacing={2} alignItems="stretch">
+          <Button variant="contained" color="primary" onClick={() => generateReport('sales-reports')}>
+            Generate Sales Report
+          </Button>
+          {/* <Button variant="contained" color="success" onClick={() => generateReport('inventory')}>
+            Generate Inventory Report
+          </Button> */}
+          <Button variant="contained" color="warning" onClick={() => generateReport('dashboard')}>
+            Generate Expiry Report
+          </Button>
+          <Button variant="contained" color="secondary" onClick={() => generateReport('sales-reports')}>
+            Generate Profit Report
+          </Button>
+        </Stack>
+      </Container>
+      <Footer />
     </>
   );
 };

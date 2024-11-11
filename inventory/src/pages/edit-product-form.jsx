@@ -11,6 +11,7 @@ import 'react-toastify/dist/ReactToastify.css';
 const EditProductForm = () => {
     const { productId } = useParams(); // Get product ID from URL params
     const [productName, setProductName] = useState('');
+    const [costPrice, setCostPrice] = useState('');
     const [price, setPrice] = useState('');
     const [category, setCategory] = useState('');
     const [categoryName, setCategoryName] = useState(''); 
@@ -46,6 +47,7 @@ const EditProductForm = () => {
                 const response = await axios.get(`${apiUrl}/inventory/get_product_by_id/${productId}/`);
                 const product = response.data;
                 setProductName(product.name);
+                setCostPrice(product.costPrice);
                 setPrice(product.price);
                 setCategory(product.category_id); // Set the category ID from the product details
                 setCategoryName(product.categoryName);
@@ -75,6 +77,7 @@ const EditProductForm = () => {
 
         const formData = new FormData();
         formData.append('name', productName);
+        formData.append('costPrice', costPrice);
         formData.append('price', price);
         formData.append('category', category);
         formData.append('categoryName', categoryName);
@@ -160,7 +163,15 @@ const EditProductForm = () => {
                         required
                     />
                     <TextField
-                        label="Price (₦)"
+                        label="Cost Price (₦)"
+                        type="number"
+                        variant="outlined"
+                        value={parseInt(parseFloat(costPrice))}
+                        onChange={(e) => setCostPrice(e.target.value)}
+                        required
+                    />
+                    <TextField
+                        label="Selling Price (₦)"
                         type="number"
                         variant="outlined"
                         value={parseInt(parseFloat(price))}

@@ -1,12 +1,12 @@
-import { Add, Cancel, Remove, ShoppingCart } from '@mui/icons-material';
-import { Badge, Box, Button, CircularProgress, FormControl, IconButton, ListItem, ListItemText, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip, Typography } from '@mui/material';
+import { Add, Cancel, Edit, Remove, ShoppingCart } from '@mui/icons-material';
+import CloseIcon from '@mui/icons-material/Close';
+import { Badge, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, IconButton, ListItem, ListItemText, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography } from '@mui/material';
 import axios from 'axios';
 import React, { useEffect, useRef, useState } from 'react';
 import { confirmAlert } from 'react-confirm-alert';
 import { useNavigate } from 'react-router-dom';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import Footer from './footer';
 
 const Sales = () => {
   const [products, setProducts] = useState([]);
@@ -16,7 +16,11 @@ const Sales = () => {
   const [cartCount, setCartCount] = useState(0);
   const [orderedItems, setOrderedItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const dropdownRef = useRef(null); 
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [productToUpdate, setProductToUpdate] = useState([]);
+  const [initialPrice, setInitialPrice] = useState();
+  const [updatedPrice, setUpdatedPrice] = useState('');
+  const dropdownRef = useRef(null);
 
   const apiUrl = process.env.REACT_APP_API_ENDPOINT;
   const navigate = useNavigate();
@@ -135,6 +139,54 @@ const Sales = () => {
   const handleAddToCart = (product) => {
     handleQuantityChange(product.id, true); // Increment the quantity when adding to cart
   };
+
+  const calculateTotal = () => {
+    return orderedItems.reduce((acc, item) => {
+      return acc + (item.price * item.quantity); // Assuming 'price' and 'quantity' exist in 'item'
+    }, 0);
+  };
+
+  const updateProductPriceInCart = async (id, price) => {
+    setIsDialogOpen(true);
+    setInitialPrice(price);
+    const productToUpdat = orderedItems.find(product => product.id == id); // Find the product to update
+
+    setProductToUpdate(productToUpdat);
+  };
+
+  const handlePriceChange = (event) => {
+    setUpdatedPrice(event.target.value);
+  };
+
+  const handleSubmit = () => {
+    if (updatedPrice === '') {
+      return toast.warning("Please enter the new price");
+    }
+  
+    // Create the updated product object
+    const updatedProduct = { ...productToUpdate, price: updatedPrice };
+  
+    // Check if the updated price is lower than the existing price
+    const existingProduct = orderedItems.find(product => product.id === updatedProduct.id);
+    if (existingProduct && parseFloat(updatedPrice) <= parseFloat(existingProduct.price)) {
+      // If the updated price is lower, show a warning and return the existing product
+      toast.warning("Updated price should be higher.");
+      return; // Don't proceed with the update
+    }
+  
+    // If the price is valid, update the product in the orderedItems array
+    setOrderedItems(prevProducts =>
+      prevProducts.map(product =>
+        product.id === updatedProduct.id ? updatedProduct : product
+      )
+    );
+  
+    console.log(orderedItems); // This will log the updated orderedItems array
+    setIsDialogOpen(false);
+    setUpdatedPrice('');
+    toast.success("Product price updated successfully");
+  };
+  
 
   const handleRemoveFromCart = (productId, productName) => {
     setQuantities((prevQuantities) => {
@@ -274,6 +326,7 @@ const Sales = () => {
               padding: '10px',
               borderRadius: '4px',
               border: '1px solid #ccc',
+              fontSize: '15px',
               boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
               transition: 'border-color 0.3s, box-shadow 0.3s',
               width: '100%',
@@ -315,7 +368,7 @@ const Sales = () => {
         >
           {filteredProducts.map((product) => (
             <ListItem ref={dropdownRef} key={product.id}>
-              <ListItemText primary={product.name} secondary={`Category: ${product.categoryName}  Qty Available: ${product.availableQuantity}`} />
+              <ListItemText primary={product.name} secondary={`Category: ${product.categoryName} | Available Quantity: ${product.availableQuantity}`} />
               <IconButton sx={{backgroundColor: '#3182ce'}} onClick={() => handleAddToCart(product)}>
                 <Add />
               </IconButton>
@@ -347,6 +400,9 @@ const Sales = () => {
                 <Typography variant="body1" style={{ fontWeight: 'bold' }}>Quantity Selected</Typography>
               </TableCell>
               <TableCell>
+                <Typography variant="body1" style={{ fontWeight: 'bold' }}>Sub Total (₦)</Typography>
+              </TableCell>
+              <TableCell>
                 <Typography variant="body1" style={{ fontWeight: 'bold' }}>Actions</Typography>
               </TableCell>
             </TableRow>
@@ -357,7 +413,7 @@ const Sales = () => {
                 <TableCell>{item.name}</TableCell>
                 <TableCell>{item.price}</TableCell>
                 <TableCell>{item.categoryName}</TableCell>
-                <TableCell>{item.availableQuantity}</TableCell>
+                <TableCell>{(item.availableQuantity) - (quantities[item.id] || 0)}</TableCell>
                 <TableCell>
                   <Tooltip title={`Reduce quantity`}>
                     <IconButton onClick={() => handleQuantityChange(item.id, false)}>
@@ -371,7 +427,13 @@ const Sales = () => {
                     </IconButton>
                   </Tooltip>
                 </TableCell>
+                <TableCell>{((item.price) * (quantities[item.id] || 0)).toFixed(2)}</TableCell>
                 <TableCell>
+                  <Tooltip title={`Edit ${item.name} price`}>
+                    <IconButton sx={{color: '#3182ce'}} onClick={() => updateProductPriceInCart(item.id, parseFloat(item.price))}>
+                      <Edit/>
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title={`Remove ${item.name} from cart`}>
                     <IconButton onClick={() => handleRemoveFromCart(item.id, item.name)} disabled={(quantities[item.id] || 0) >= item.availableQuantity}>
                       <Cancel color="error" />
@@ -383,10 +445,41 @@ const Sales = () => {
           </TableBody>
         </Table>
       </TableContainer>
+      <Typography variant="h6" sx={{ marginTop: '20px', fontWeight: 'bold' }}>
+        Total: ₦{new Intl.NumberFormat().format(calculateTotal().toFixed(2))}
+      </Typography>
 
+      {/* Update Product Price Dialog */}
+      {isDialogOpen &&
+      <Dialog open={isDialogOpen} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ backgroundColor: '#212121', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="h6">Update Price</Typography>
+          <IconButton edge="end" color="inherit" onClick={() => {setIsDialogOpen(false)}} aria-label="close">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        
+        <DialogContent dividers>
+          <TextField
+            label="New Price"
+            variant="outlined"
+            fullWidth
+            type="number"
+            value={updatedPrice || initialPrice}
+            onChange={handlePriceChange}
+            autoFocus
+          />
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={handleSubmit} variant="contained" color="primary">
+            Submit
+          </Button>
+        </DialogActions>
+      </Dialog>
+      }
       <ToastContainer />
     </Box>}
-    <Footer/>
     </>
   );
 };

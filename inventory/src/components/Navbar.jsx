@@ -1,4 +1,4 @@
-import { Add, AdminPanelSettings, ArrowDropDown, Assessment, Category, Dashboard, Inventory, Logout, PointOfSaleSharp, ShoppingBag } from '@mui/icons-material';
+import { Add, AdminPanelSettings, ArrowDropDown, Assessment, Category, Dashboard, Group, Inventory, Logout, PointOfSaleSharp, ShoppingBag } from '@mui/icons-material';
 import MenuIcon from '@mui/icons-material/Menu';
 import { AppBar, Box, Button, Drawer, IconButton, List, ListItem, ListItemIcon, ListItemText, Menu, MenuItem, Toolbar, Tooltip, Typography } from '@mui/material';
 import React, { useState } from 'react';
@@ -21,6 +21,7 @@ const Navbar = () => {
     { text: 'Create Category', icon: <Category />, path: '/category-form', roles: ['Manager', 'Inventory Personnel'] },
     { text: 'Create Product', icon: <Add />, path: '/product-form', roles: ['Manager', 'Inventory Personnel'] },
     { text: 'Reports', icon: <Assessment />, path: '/reports', roles: ['Manager'] },
+    { text: 'Human Resources ', icon: <Group  />, path: '/human-resources', roles: ['Manager'] },
     { text: 'Logout', icon: <Logout />, path: '/logout' },
   ];
 

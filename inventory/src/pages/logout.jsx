@@ -11,37 +11,37 @@ const Logout = () => {
   const { updateUserData } = useUserContext(); // Use the context
 
     const handleLogout = () => {
-        confirmAlert({
-            title: 'Confirm Logout',
-            message: 'Are you sure you want to logout?',
-            buttons: [
-                {
-                    label: 'Yes',
-                    onClick: () => {
-                        updateUserData(null); // Call the context function to remove user data
-                        navigate('/'); // Navigate to the login page
-                    },
-                    style: {
-                        backgroundColor: '#3182ce',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '10px 20px',
-                        cursor: 'pointer',
-                    },
-                },
-                {
-                    label: 'No',
-                    onClick: () => {}, // No action on cancel
-                    style: {
-                        backgroundColor: 'crimson',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '10px 20px',
-                        cursor: 'pointer',
-                    },
-                },
-            ],
-        });
+      confirmAlert({
+          title: 'Confirm Logout',
+          message: 'Are you sure you want to logout?',
+          buttons: [
+              {
+                  label: 'Yes',
+                  onClick: () => {
+                      updateUserData(null); // Call the context function to remove user data
+                      navigate('/'); // Navigate to the login page
+                  },
+                  style: {
+                      backgroundColor: '#3182ce',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '10px 20px',
+                      cursor: 'pointer',
+                  },
+              },
+              {
+                  label: 'No',
+                  onClick: () => {}, // No action on cancel
+                  style: {
+                      backgroundColor: 'crimson',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '10px 20px',
+                      cursor: 'pointer',
+                  },
+              },
+          ],
+      });
     };
 
   return (

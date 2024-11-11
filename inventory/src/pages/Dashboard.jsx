@@ -1,20 +1,27 @@
-import { Box, Grid as Grid2, Paper, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { Close as CloseIcon } from '@mui/icons-material';
+import { Box, Dialog, DialogContent, DialogTitle, Grid as Grid2, IconButton, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, useMediaQuery, useTheme } from '@mui/material';
 import axios from 'axios';
 import React, { useEffect, useState } from 'react';
-import { FaBoxes, FaChartLine, FaClock, FaExclamationTriangle, FaFileAlt, FaTasks } from 'react-icons/fa';
+import { FaBoxes, FaCalendarDay, FaClock, FaExclamationTriangle, FaFileAlt, FaTasks } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
-import Swal from 'sweetalert2'; // Import SweetAlert2
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import Footer from './footer';
 
 const Dashboard = () => {
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
-  const [totalSales, getTotalSales] = useState();
+  const [todaysRevenue, setTodaysRevenue] = useState();
+  // const [totalSales, getTotalSales] = useState();
+  const [openDialog, setOpenDialog] = useState(false);
+  const [dialogPurpose, setDialogPurpose] = useState(''); 
   const [totalProductQuantity, getTotalProductQuantity] = useState('');
   const [lowStockItems, setLowStockItems] = useState([]); // Changed to array
   const [pendingOrdersNumber, setPendingOrdersNumber] = useState();
   const [completedOrdersNumber, setCompletedOrdersNumber] = useState();
+  const [expiringProducts, setExpiringProducts] = useState([]);
+  const [expiredProducts, setExpiredProducts] = useState([]);
   const [userType, setUserType] = useState('');
 
   const apiUrl = process.env.REACT_APP_API_ENDPOINT;
@@ -27,15 +34,25 @@ const Dashboard = () => {
       setUserType(userData.user_type);
     }
 
-    const fetchTotalSales = async () => {
+    const fetchTodaySales = async () => {
       try {
-        const response = await axios.get(`${apiUrl}/inventory/get_total_sales`);
-        getTotalSales(response.data.totalSales);
-        console.log('Total Sales:', totalSales);
+        const response = await axios.get(`${apiUrl}/inventory/get_today_sales`);
+        setTodaysRevenue(response.data.todaySales);
+        console.log('Today\'s Sales:', response.data.todaySales);
       } catch (error) {
-        console.error('Error fetching total sales:', error);
+        console.error('Error fetching today\'s sales:', error);
       }
     };
+
+    // const fetchTotalSales = async () => {
+    //   try {
+    //     const response = await axios.get(`${apiUrl}/inventory/get_total_sales`);
+    //     getTotalSales(response.data.totalSales);
+    //     console.log('Total Sales:', totalSales);
+    //   } catch (error) {
+    //     console.error('Error fetching total sales:', error);
+    //   }
+    // };
 
     const fetchTotalProductNumber = async () => {
       try {
@@ -87,100 +104,141 @@ const Dashboard = () => {
       }
     };
 
-    fetchTotalSales();
+    const fetchExpiringProducts = async () => {
+      try {
+        const response = await axios.get(`${apiUrl}/inventory/get_expiring_products/`);
+        if (response.data.success) {
+          setExpiringProducts(response.data.expiring_products);
+        }
+      } catch (error) {
+        console.error('Error fetching expiring products:', error);
+      }
+    };
+  
+    const fetchExpiredProducts = async () => {
+      try {
+        const response = await axios.get(`${apiUrl}/inventory/get_expired_products/`);
+        if (response.data.success) {
+          setExpiredProducts(response.data.expired_products);
+        }
+      } catch (error) {
+        console.error('Error fetching expired products:', error);
+      }
+    };
+
+    fetchTodaySales();
+    // fetchTotalSales();
     fetchTotalProductNumber();
     fetchLowStockItems();
     fetchPendingOrdersNumber()
     fetchCompletedOrdersNumber();
+    fetchExpiringProducts();
+    fetchExpiredProducts();
   }, [navigate]);
 
-  const showLowStockPopup = () => {
-    const items = lowStockItems.map(item => `${item.name}: ${item.availableQuantity}`).join('<br>');
-    Swal.fire({
-      title: 'Low Stock Products',
-      html: items || 'No low stock items found',
-      icon: 'warning',
-      confirmButtonText: 'Close',
-      showCloseButton: true,
-    });
-  };
+  const fetchProducts = async (purpose) => {
+    let endpoint = '';
+    if (purpose === 'expiring') {
+      endpoint = '/inventory/get_expiring_products/';
+    } else if (purpose === 'expired') {
+      endpoint = '/inventory/get_expired_products/';
+    } else {
+      return;
+    }
 
-  // Function to fetch expiring products
-  const fetchExpiringProducts = async () => {
     try {
-      const response = await axios.get(`${apiUrl}/inventory/get_expiring_products/`);
+      const response = await axios.get(`${apiUrl}${endpoint}`);
       if (response.data.success) {
-        const expiringProducts = response.data.expiring_products;
-        const productsList = expiringProducts.map(product => 
-          `${product.name}: ${new Date(product.expiry_date).toLocaleDateString()}`
-        ).join('\n');
-
-        // Display SweetAlert2 popup
-        Swal.fire({
-          title: 'Expiring Products Soon',
-          text: productsList,
-          icon: 'info',
-          confirmButtonText: 'Close',
-        });
+        if (purpose === 'expiring') {
+          setExpiringProducts(response.data.expiring_products);
+        } else if (purpose === 'expired') {
+          setExpiredProducts(response.data.expired_products);
+        }
+        setDialogPurpose(purpose);
+        setOpenDialog(true);
       } else {
-        console.error('Error fetching expiring products:', response.data.error);
+        console.error(`Error fetching ${purpose} products:`, response.data.error);
+        toast.error(`Error fetching ${purpose} products.`);
       }
     } catch (error) {
-      console.error('An error occurred while fetching expiring products:', error);
+      console.error(`An error occurred while fetching ${purpose} products:`, error);
+      toast.error(`Error fetching ${purpose} products.`);
     }
   };
+
+  const showLowStockPopup = () => {
+    setDialogPurpose('lowStock');
+    setOpenDialog(true);
+  };
+
 
   // Sample data for demonstration
   const stats = [
     {
       icon: <FaBoxes style={{ color: 'blue', marginRight: 8 }} />,
       label: 'Total Products',
-      number: `${new Intl.NumberFormat('en-NG').format(totalProductQuantity)}`,
+      number: `${new Intl.NumberFormat('en-NG').format(totalProductQuantity)}` || 0,
       helpText: 'In stock',
     },
     {
       icon: <FaExclamationTriangle style={{ color: 'orange', marginRight: 8 }} />,
       label: 'Low Stock Products',
-      number: `${lowStockItems.length}`, // Show count of low stock items
+      number: `${lowStockItems.length}` || 0, // Show count of low stock items
       helpText: 'Below threshold (10)',
       onClick: showLowStockPopup, // Add onClick to trigger popup
     },
     {
       icon: <FaClock style={{ color: 'red', marginRight: 8 }} />,
       label: 'Expiring Soon',
-      number: 'Check',
+      number: expiringProducts.length || 0,
       helpText: 'Within 30 days',
-      onClick: fetchExpiringProducts, // Add onClick to fetch expiring products
+      onClick: () => fetchProducts('expiring'), // Add onClick to fetch expiring products
+    },
+    {
+      icon: <FaClock style={{ color: 'red', marginRight: 8 }} />,
+      label: 'Expired Products',
+      number: expiredProducts.length || 0,
+      helpText: 'Already expired',
+      onClick: () => fetchProducts('expired'), // Add onClick to fetch expiring products
     },
     {
       icon: <FaTasks style={{ color: 'purple', marginRight: 8 }} />,
       label: 'Pending Orders',
-      number: `${pendingOrdersNumber}`,
+      number: `${pendingOrdersNumber}` || 0,
       helpText: 'Waiting to be processed',
     },
     {
       icon: <FaTasks style={{ color: 'green', marginRight: 8 }} />,
       label: 'Completed Orders',
-      number: `${completedOrdersNumber}`,
+      number: `${completedOrdersNumber}` || 0,
       helpText: 'Delivered to customers',
     },
   ];
 
   // Conditionally add these stats if user_type is Manager
-  if (userType === 'Manager') {
+  if (userType == 'Manager') {
+    // stats.unshift({
+    //   icon: <FaChartLine style={{ color: 'green', marginRight: 8 }} />,
+    //   label: 'Total Sales',
+    //   number: totalSales ? `₦${new Intl.NumberFormat('en-NG').format(totalSales)}` : 'loading...',
+    //   helpText: 'Up To Date.',
+    // });
     stats.unshift({
-      icon: <FaChartLine style={{ color: 'green', marginRight: 8 }} />,
-      label: 'Total Sales',
-      number: `₦${new Intl.NumberFormat('en-NG').format(totalSales)}`,
-      helpText: 'Up To Date',
+      icon: <FaCalendarDay style={{ color: '#4CAF50', marginRight: 8 }} />, // Bright green for visibility
+      label: 'Today\'s Sales',
+      number: todaysRevenue ? `₦${new Intl.NumberFormat('en-NG').format(todaysRevenue)}` : 'No Sales yet',
+      helpText: 'Total sales made today.',
+      onClick: () => navigate('/sales-reports')
     });
     stats.push({
       icon: <FaFileAlt style={{ color: 'brown', marginRight: 8 }} />,
       label: 'Report',
-      number: 'Monthly Report',
-      helpText: 'Coming soon...',
+      number: 'Sales Reports',
+      helpText: 'Click here',
+      onClick: () => navigate('/sales-reports'),
     });
   }
+
 
   return (
     <>
@@ -217,6 +275,55 @@ const Dashboard = () => {
         ))}
       </Grid2>
     </Box>
+
+    <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth maxWidth="sm">
+        <DialogTitle sx={{backgroundColor: '#212121', color: '#ccc'}}>
+          {dialogPurpose === 'expiring' && 'Expiring Products - To expire in 30 days'}
+          {dialogPurpose === 'expired' && 'Expired Products'}
+          {dialogPurpose === 'lowStock' && 'Low Stock Products - Below threshold of 10'}
+          <IconButton
+            aria-label="close"
+            onClick={() => setOpenDialog(false)}
+            sx={{ position: 'absolute', right: 8, top: 8, color: '#ccc' }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{mt: 2}}>
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+              <TableRow>
+                <TableCell><strong>Product Name</strong></TableCell>
+                <TableCell><strong>Category</strong></TableCell>
+                {dialogPurpose === 'lowStock' ? (
+                  <TableCell><strong>Available Quantity</strong></TableCell>
+                ) : (
+                  <TableCell><strong>Expiry Date</strong></TableCell>
+                )}
+              </TableRow>
+              </TableHead>
+              <TableBody>
+                {(dialogPurpose === 'expiring' ? expiringProducts :
+                  dialogPurpose === 'expired' ? expiredProducts : lowStockItems
+                ).map((product, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{product.name}</TableCell>
+                    <TableCell>{product.categoryName}</TableCell>
+                    {dialogPurpose === 'lowStock' ? (
+                      <TableCell>{product.availableQuantity}</TableCell>
+                    ) : (
+                      <TableCell>
+                        {new Date(product.expiry_date).toLocaleDateString('en-US', {year: 'numeric', month: 'long', day: 'numeric'})}
+                        </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </DialogContent>
+      </Dialog>
     <Footer/>
     </>
   );

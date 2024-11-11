@@ -1,6 +1,7 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from django.utils import timezone
 from decimal import Decimal, InvalidOperation
+from bson.decimal128 import Decimal128
 from pymongo import MongoClient
 from django.conf import settings
 from django.db import IntegrityError
@@ -12,6 +13,10 @@ from rest_framework import status
 from django.db.models import Sum
 from .models import Category, Product
 from .serializers import CategorySerializer, ProductSerializer
+import pytz
+
+# Set the timezone to Lagos, Nigeria
+local_timezone = pytz.timezone('Africa/Lagos')
 
 client = MongoClient(settings.DATABASES['default']['CLIENT']['host'])
 db = client['Inventory']  # Replace with your actual database name
@@ -120,8 +125,16 @@ def get_product_by_id(request, product_id):
 @api_view(['PATCH'])
 def update_product(request, product_id):
     product = get_object_or_404(Product, id=product_id)
-    serializer = ProductSerializer(instance=product, data=request.data, partial=True)
+    new_name = request.data.get('name', None)
 
+    # Check if another product with the same name already exists
+    if new_name and Product.objects.filter(name__iexact=new_name).exclude(id=product_id).exists():
+        return Response(
+            {'error': 'A product with this name already exists.'},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+
+    serializer = ProductSerializer(instance=product, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -140,13 +153,10 @@ def delete_product(request, product_id):
 
 
 
-# Save pending Order
 @api_view(['POST'])
 def save_pending_order(request):
     try:
         data = request.data
-        
-        # Extract main purchase data
         purchase_code = data.get('purchaseCode')
         ordered_items = data.get('orderedItems', [])
 
@@ -154,16 +164,15 @@ def save_pending_order(request):
         if db.pending_orders.find_one({"purchaseCode": purchase_code}):
             return JsonResponse({"error": "Order with this purchase code already exists."}, status=409)
 
-        # Format the order document
+        # Format the order document with Lagos timezone
         order_document = {
             "purchaseCode": purchase_code,
             "orderedItems": ordered_items,
-            "createdAt": timezone.now()
+            "createdAt": timezone.now().astimezone(local_timezone).isoformat()
         }
-        
+
         # Insert the order document into MongoDB
         result = db.pending_orders.insert_one(order_document)
-        
         return JsonResponse({"message": "Order saved successfully", "orderId": str(result.inserted_id)}, status=201)
 
     except Exception as e:
@@ -221,18 +230,29 @@ def save_completed_orders(request):
         staff_name = data.get('staff_name')
         date_sold = data.get('date_sold')
 
+        print(f"Ordered Items: {ordered_items}")
+
         # Process each item in ordered_items
         for item in ordered_items:
+            # Clean and convert price
             price = item.get('price', "0")
-            # Clean the price string to remove any unwanted characters
-            price_str = str(price).replace('“', '').replace('”', '').strip()
+            price_str = str(price).replace('“', '').replace('”', '').replace('"', '').strip()
 
-            # Convert the price to Decimal, ensuring it's a valid decimal number
+            # Clean and convert costPrice, allowing for None or string values
+            cost_price = item.get('costPrice')
+            print(f"Cost Price: {cost_price}")
+            if cost_price is None:
+                cost_price_str = "0"  # Set default if costPrice is None
+            else:
+                cost_price_str = str(cost_price).replace('“', '').replace('”', '').replace('"', '').strip()
+                print(f"Cleaned Cost Price: {cost_price_str}")
+
+            # Ensure price and costPrice are properly formatted before converting to Decimal
             try:
-                item['price'] = Decimal(price_str) if price_str else Decimal('0')
-                print(f"Processed price for item: {item['price']}")  # Debugging output
-            except InvalidOperation:
-                return JsonResponse({"error": f"Invalid price format: {price_str}"}, status=400)
+                item['price'] = Decimal(price_str.replace(',', '')) if price_str else Decimal('0')
+                item['costPrice'] = Decimal(cost_price_str.replace(',', '')) if cost_price_str else Decimal('0')
+            except InvalidOperation as e:
+                return JsonResponse({"error": f"Invalid price or cost price format: {price_str}, {cost_price_str}. Error: {str(e)}"}, status=400)
 
         # Iterate through ordered items and update product quantities
         for item in ordered_items:
@@ -254,15 +274,21 @@ def save_completed_orders(request):
             # Prepare data for ProductSerializer
             product_data = {
                 'id': product.id,
-                'price': item['price'],
+                'costPrice': product.costPrice if product.costPrice not in [None, 0] else 0,
+                'price': product.price,
                 'availableQuantity': product.availableQuantity - ordered_quantity,
             }
 
             # Validate and update the product using ProductSerializer
             serializer = ProductSerializer(product, data=product_data, partial=True)
             if serializer.is_valid():
-                serializer.save()  # Save updated product
+                try:
+                    serializer.save()  # Save updated product
+                except Exception as e:
+                    print(f"Error saving product with ID {product.id}: {str(e)}")
+                    return JsonResponse({"error": f"Failed to save product with ID {product.id}."}, status=400)
             else:
+                print(f"Product serializer errors: {serializer.errors}")
                 return JsonResponse({"error": serializer.errors}, status=400)
 
         # Create the completed order document for MongoDB
@@ -273,12 +299,13 @@ def save_completed_orders(request):
             "totalAmount": float(total_amount),  # Convert Decimal to float for JSON response
             "userType": user_type,
             "staff_name": staff_name,
-            "date_sold": date_sold or timezone.now().isoformat()
+            "date_sold": timezone.now().astimezone(local_timezone).isoformat()
         }
 
-        # Convert any remaining Decimal values to float or str in ordered_items
+        # Convert any remaining Decimal values to float in ordered_items
         for item in ordered_items:
             item['price'] = float(item['price'])
+            item['costPrice'] = float(item['costPrice'])
 
         print("Order document ready for saving:", completed_order_document)
 
@@ -307,6 +334,36 @@ def get_completed_orders(request):
             del order['_id']  # Remove MongoDB's default _id field
 
         return JsonResponse(completed_orders, safe=False, status=200)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+
+# Get today's sales for dashboard view
+@api_view(['GET'])
+def get_today_sales(request):
+    try:
+        # Initialize total sales for today
+        today_sales = Decimal('0.0')
+
+        # Get today's date in "YYYY-MM-DD" format
+        today_date = datetime.today().strftime('%Y-%m-%d')
+
+        # Fetch completed orders where date_sold starts with today's date (ignoring time)
+        completed_orders = db.completed_orders.find({
+            "date_sold": {
+                "$regex": f"^{today_date}"
+            }
+        })
+
+        # Sum up the total amounts for each completed order
+        for order in completed_orders:
+            total_amount = Decimal(str(order.get('totalAmount', '0')))
+            today_sales += total_amount
+
+        # Return today's total sales as JSON
+        return JsonResponse({'todaySales': float(today_sales)}, status=200)
+
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
 
@@ -369,7 +426,7 @@ def get_low_stock_items(request, threshold):
         low_stock_items = Product.objects.filter(availableQuantity__lt=threshold)
         
         # You can include additional fields if necessary, such as name and availableQuantity
-        low_stock_data = low_stock_items.values('id', 'name', 'availableQuantity')
+        low_stock_data = low_stock_items.values('id', 'name', 'categoryName', 'availableQuantity')
         
         return JsonResponse({
             'success': True,
@@ -392,14 +449,17 @@ def get_low_stock_items(request, threshold):
 def get_expiring_products(request):
     try:
         # Get the current date and the date 30 days from now
-        current_date = timezone.now()
+        current_date = datetime.now()
         expiry_date_limit = current_date + timedelta(days=30)
 
         # Filter products that are expiring within the next 30 days
-        expiring_products = Product.objects.filter(expiry_date__gte=current_date, expiry_date__lt=expiry_date_limit)
+        expiring_products = Product.objects.filter(
+            expiry_date__gte=current_date,
+            expiry_date__lt=expiry_date_limit
+        )
 
         # Prepare the response data
-        expiring_data = expiring_products.values('id', 'name', 'expiry_date')
+        expiring_data = expiring_products.values('id', 'name', 'categoryName', 'expiry_date')
 
         return JsonResponse({
             'success': True,
@@ -415,6 +475,35 @@ def get_expiring_products(request):
         })
     
 
+
+
+# Get already expired products
+@api_view(['GET'])
+def get_expired_products(request):
+    try:
+        # Get the current date
+        current_date = datetime.now()
+
+        # Filter products that have expired (expiry_date less than current date)
+        expired_products = Product.objects.filter(
+            expiry_date__lt=current_date
+        )
+
+        # Prepare the response data
+        expired_data = expired_products.values('id', 'name', 'categoryName', 'expiry_date')
+
+        return JsonResponse({
+            'success': True,
+            'expired_products': list(expired_data),
+            'message': 'Expired products retrieved successfully.'
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'message': 'An error occurred while fetching expired products.'
+        })
 
 
 

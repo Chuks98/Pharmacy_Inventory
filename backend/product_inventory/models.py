@@ -15,7 +15,8 @@ class Category(models.Model):
 class Product(models.Model):
     id = AutoIncrementField(sequence_name='my_model_sequence', primary_key=True)
     name = models.CharField(max_length=255, unique=True)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    costPrice = models.DecimalField(max_digits=20, decimal_places=2)
+    price = models.DecimalField(max_digits=20, decimal_places=2)
     availableQuantity = models.PositiveIntegerField()
     categoryName = models.CharField(max_length=255, null=True, blank=True)
     category = models.ForeignKey(Category, related_name='products', on_delete=models.CASCADE)

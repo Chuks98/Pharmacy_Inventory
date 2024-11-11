@@ -25,13 +25,13 @@ const Register = () => {
   const userData = JSON.parse(localStorage.getItem('userData'));
 
   useEffect(() => {
-    if (localStorage.getItem('userData')) {
-      navigate('/dashboard');
+    if(userData) {
+      if(userData.user_type != 'Manager') {
+        navigate('/');
+      }
+    } else {
+      navigate('/');
     }
-
-    // if(!(userData.user_type == 'Manager')) {
-    //   navigate('/');
-    // }
   });
 
   const handleRegister = async (e) => {

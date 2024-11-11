@@ -54,7 +54,7 @@ class RegisterView(View):
 
 
 
-
+# Login Code
 class LoginView(View):
     def post(self, request):
         data = json.loads(request.body)
@@ -72,14 +72,38 @@ class LoginView(View):
             return JsonResponse({'message': 'Login successful'}, status=200)
         else:
             return JsonResponse({'error': 'INCORRECT_PASSWORD', 'message': 'Incorrect password'}, status=204)
+
+
+
+
+
+# Get all users
+class GetAllUsersView(View):
+    def get(self, request):
+        try:
+            # Query all Profile records
+            users = Profile.objects.all()
+            
+            # Serialize the queryset
+            serializer = ProfileSerializer(users, many=True)
+
+            print('YBFKYHSIFBUHDSBIUYFDGSUDSIUDHIUSHDIUHN')
+            
+            # Return JSON response
+            return JsonResponse(serializer.data, safe=False, status=200)
+
+        except Profile.DoesNotExist:
+            return JsonResponse({'error': 'NO_USERS_FOUND', 'message': 'No users found in the database'}, status=404)
         
+        except Exception as e:
+            # Catch any other unexpected errors
+            return JsonResponse({'error': 'INTERNAL_SERVER_ERROR', 'message': str(e)}, status=500)
 
 
 
-
-class UserDetailView(View):
+# Get specific user via username
+class GetSingleUserView(View):
     def get(self, request, username):
-        print("AT LEAST GOT IN HERE YOU KNOW IT NOW")
         try:
             profile = Profile.objects.get(username=username)  # Get user by username
             
@@ -89,3 +113,73 @@ class UserDetailView(View):
             return JsonResponse(user_data, status=200)
         except Profile.DoesNotExist:
             return JsonResponse({'error': 'User not found'}, status=406)
+        
+
+
+# Update a specific user via id
+class UpdateSingleUserView(View):
+    def patch(self, request, user_id):
+        try:
+            # Find the user record
+            user = Profile.objects.get(id=user_id)
+
+            # Parse JSON data from request body
+            data = json.loads(request.body)
+
+            # Check for username uniqueness
+            if "username" in data:
+                username = data["username"]
+                if Profile.objects.filter(username=username).exclude(id=user_id).exists():
+                    return JsonResponse({'error': 'USERNAME_ALREADY_EXISTS', 'message': 'Username already exists'}, status=203)
+
+            # Check for email uniqueness
+            if "email" in data:
+                email = data["email"]
+                if Profile.objects.filter(email=email).exclude(id=user_id).exists():
+                    return JsonResponse({'error': 'EMAIL_ALREADY_EXISTS', 'message': 'Email already exists'}, status=204)
+
+            # Check for user_type uniqueness
+            if "user_type" in data:
+                user_type = data["user_type"]
+                if Profile.objects.filter(user_type=user_type).exclude(id=user_id).exists():
+                    return JsonResponse({'error': 'USER_TYPE_ALREADY_EXISTS', 'message': 'User type already exists'}, status=205)
+
+            # Update the user fields if provided in the request data
+            user.username = data.get("username", user.username)
+            user.user_type = data.get("user_type", user.user_type)
+            user.first_name = data.get("first_name", user.first_name)
+            user.last_name = data.get("last_name", user.last_name)
+            user.email = data.get("email", user.email)
+            user.phone_number = data.get("phone_number", user.phone_number)
+            user.address = data.get("address", user.address)
+
+            # Hash and update the password if it's provided
+            if "password" in data:
+                user.password = make_password(data["password"])
+
+            # Save changes to the database
+            user.save()
+
+            # Serialize the updated user data and send a response
+            serializer = ProfileSerializer(user)
+            return JsonResponse(serializer.data, status=200)
+
+        except Profile.DoesNotExist:
+            return JsonResponse({'error': 'USER_NOT_FOUND', 'message': 'User not found'}, status=404)
+
+        except Exception as e:
+            return JsonResponse({'error': 'INTERNAL_SERVER_ERROR', 'message': str(e)}, status=500)
+
+
+
+# Delete a specific user using user id
+class DeleteSingleUserView(View):
+    def delete(self, request, user_id):
+        try:
+            # Try to retrieve the user by their ID
+            user = Profile.objects.get(id=user_id)
+            user.delete()  # Delete the user
+            return JsonResponse({'message': 'User deleted successfully'}, status=200)
+        except Profile.DoesNotExist:
+            # If user with the given ID does not exist
+            return JsonResponse({'error': 'USER_NOT_FOUND', 'message': 'User not found'}, status=404)

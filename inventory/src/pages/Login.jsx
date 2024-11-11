@@ -33,7 +33,7 @@ const Login = () => {
         toast.success('Login Successful.');
 
         // Now, retrieve user data based on username
-        const userResponse = await axios.get(`${apiUrl}/users/${username}/`); // Adjust endpoint as necessary
+        const userResponse = await axios.get(`${apiUrl}/users/get_single_user/${username}/`); // Adjust endpoint as necessary
         if (userResponse.status === 200) {
           // Save user data to localStorage and update context
           updateUserData(userResponse.data); // Update context with user data
